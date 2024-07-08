@@ -1,7 +1,8 @@
 import os
-
+import numpy as np
 import cv2
-from mediapipe.python.solutions.drawing_utils import DrawingSpec, draw_landmarks
+import pandas as pd
+from mediapipe.python.solutions.drawing_utils import DrawingSpec, draw_landmarks # se importa una funcion(draw...) y una clase(Drawing..), mas a fondo en (46,54,62)
 from mediapipe.python.solutions.holistic import (
     FACEMESH_CONTOURS,
     HAND_CONNECTIONS,
@@ -16,17 +17,17 @@ def create_dir(path):
         os.mkdir(path)
 
 
-def mediapipe_detection(image, model):
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image.flags.writeable = False
-    results = model.process(image)
+def mediapipe_detection(image, model): # (frame,holistic_model) , se ve en capture_samples
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) #image = "imagen ya covertida"
+    image.flags.writeable = False # tacho a la image de no ser modificable
+    results = model.process(image) #aqui "model" es llamado como "holistic()" en capture_samples(49 line)
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     return image, results
 
 
 def there_hand(results: NamedTuple) -> bool:
-    return results.left_hand_landmarks or results.right_hand_landmarks
+    return results.left_hand_landmarks or results.right_hand_landmarks # v o f // f o v
 
 
 def save_frames(frames, output_dir):
@@ -39,18 +40,18 @@ def draw_keypoints(image, results):
     """
     Dibuja los keypoints en la imagen
     """
-    draw_landmarks(
-        image,
-        results.face_landmarks,
-        FACEMESH_CONTOURS,
-        DrawingSpec(color=(80, 110, 10), thickness=1, circle_radius=1),
-        DrawingSpec(color=(80, 256, 121), thickness=1, circle_radius=1),
+    draw_landmarks( # esta funcion "draw_landmarks" se utiliza para indicar donde se dibuja las marcas en el frame
+        image, #arg
+        results.face_landmarks, #arg los puntos detectados en cara
+        FACEMESH_CONTOURS, #arg las conexiones entre la cara
+        DrawingSpec(color=(80, 110, 10), thickness=1, circle_radius=1), #arg color del las marcas de la cara
+        DrawingSpec(color=(80, 256, 121), thickness=1, circle_radius=1), #arg color de las conexiones 
     )
     # Draw pose connections
     draw_landmarks(
         image,
         results.pose_landmarks,
-        POSE_CONNECTIONS,
+        POSE_CONNECTIONS, 
         DrawingSpec(color=(80, 22, 10), thickness=2, circle_radius=4),
         DrawingSpec(color=(80, 44, 121), thickness=2, circle_radius=2),
     )
@@ -58,15 +59,46 @@ def draw_keypoints(image, results):
     draw_landmarks(
         image,
         results.left_hand_landmarks,
-        HAND_CONNECTIONS,
+        HAND_CONNECTIONS,# deteccion de mano izquierda 
         DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
         DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2),
     )
     # Draw right hand connections
     draw_landmarks(
         image,
-        results.right_hand_landmarks,
-        HAND_CONNECTIONS,
+        results.right_hand_landmarks, 
+        HAND_CONNECTIONS, #deteccion de mano derecha
         DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
         DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2),
     )
+
+# FUNCIONES NECESARIAS PARA "CREATE_KEYPOINT.py"
+
+def extract_keypoints(results):
+    pose = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33*4)
+    face = np.array([[res.x, res.y, res.z] for res in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468*3)
+    lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(21*3)
+    rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
+    return np.concatenate([pose, face, lh, rh])
+
+
+def get_keypoints(model,path): #(holistic_model, ruta)
+    kp_sequence = np.array([]) #estoy creando una lista de elemntos comunes, para math
+    for name_img in os.listdir(path): #sample_path
+        path_img = os.path.join(path,name_img)
+        frame = cv2.imread(path_img)
+        _, results = mediapipe_detection(frame, model)
+        kp_frame = extract_keypoints(results)
+        kp_sequence= np.concatenate([kp_sequence, [kp_frame]] if kp_sequence.size>0 else [[kp_frame]])
+    return kp_sequence
+
+def insert_keypoints_sequence(df, n_sample: int, kp_seq):
+    '''
+    ### INSERTA LOS KEYPOINTS DE LA MUESTRA AL DATAFRAME
+    Retorna el mismo DataFrame pero con los keypoints de la muestra agregados
+    '''
+    for frame, keypoints in enumerate(kp_seq):
+        data = {'sample': n_sample, 'frame': frame + 1,'keypoints': [keypoints]}
+        df_keypoints = pd.DataFrame(data)
+        df = pd.concat([df, df_keypoints])
+    return df
