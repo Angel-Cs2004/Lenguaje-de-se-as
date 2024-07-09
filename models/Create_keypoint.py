@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from mediapipe.python.solutions.holistic import Holistic
-from model_utils import get_keypoints, insert_keypoints_sequence
+from utils.model_utils import get_keypoints, insert_keypoints_sequence
 from utils.constants import DATA_PATH, FRAME_ACTIONS_PATH, ROOT_PATH,PROCESSED_DATA_PATH
 
 def create_keypoints(frames_path,save_path): #(folder_samples,guardar[processed]) de aqui se toma las varibables de (line 30)
