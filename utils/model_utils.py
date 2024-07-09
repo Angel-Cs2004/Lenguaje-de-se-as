@@ -81,14 +81,14 @@ def extract_keypoints(results):
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
     return np.concatenate([pose, face, lh, rh])
 
-
-def get_keypoints(model,path): #(holistic_model, ruta)
-    kp_sequence = np.array([]) #estoy creando una lista de elemntos comunes, para math
-    for name_img in os.listdir(path): #sample_path
-        path_img = os.path.join(path,name_img)
-        frame = cv2.imread(path_img)
-        _, results = mediapipe_detection(frame, model)
-        kp_frame = extract_keypoints(results)
+def get_keypoints(model,path): #(holistic,samples path==> fotos en carpeta)
+    kp_sequence = np.array([]) #estoy creando una lista de elementos comunes, para samples_path
+    for name_img in os.listdir(path): #name_img , recorrera todas la img de sample_path
+        path_img = os.path.join(path,name_img) # ruteamos samples_path/ name_img
+        frame = cv2.imread(path_img) #leemos o process la ruta de la img directa
+        _, results = mediapipe_detection(frame, model)# aquise procesa la img y es trasformada a matriz  (img, process)
+        kp_frame = extract_keypoints(results) 
+        # el ".concatenate"
         kp_sequence= np.concatenate([kp_sequence, [kp_frame]] if kp_sequence.size>0 else [[kp_frame]])
     return kp_sequence
 
