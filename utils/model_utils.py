@@ -10,6 +10,9 @@ from mediapipe.python.solutions.holistic import (
 )
 from typing_extensions import NamedTuple
 
+def dir_exists(path):
+    # Verify if exist the directory
+    return True if os.path.exists(path) else False
 
 def create_dir(path):
     # Create the directory if not exists
@@ -23,7 +26,7 @@ def mediapipe_detection(image, model): # (frame,holistic_model) , se ve en captu
     results = model.process(image) #aqui "model" es llamado como "holistic()" en capture_samples(49 line)
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    return image, results
+    return results
 
 
 def there_hand(results: NamedTuple) -> bool:
@@ -86,19 +89,21 @@ def get_keypoints(model,path): #(holistic,samples path==> fotos en carpeta)
     for name_img in os.listdir(path): #name_img , recorrera todas la img de sample_path
         path_img = os.path.join(path,name_img) # ruteamos samples_path/ name_img
         frame = cv2.imread(path_img) #leemos o process la ruta de la img directa
-        _, results = mediapipe_detection(frame, model)# aquise procesa la img y es trasformada a matriz  (img, process)
+        results = mediapipe_detection(frame, model)# aquise procesa la img y es trasformada a matriz  (img, process)
+       #ya se extrajo los kp , tenemos todos
         kp_frame = extract_keypoints(results) 
         # el ".concatenate"
         kp_sequence= np.concatenate([kp_sequence, [kp_frame]] if kp_sequence.size>0 else [[kp_frame]])
-    return kp_sequence
+    return kp_sequence #me vota una array con todos los kp 
 
 def insert_keypoints_sequence(df, n_sample: int, kp_seq):
+    #                        (data,n_sample=int, kp_seq== kp de una mig de un models)
     '''
     ### INSERTA LOS KEYPOINTS DE LA MUESTRA AL DATAFRAME
     Retorna el mismo DataFrame pero con los keypoints de la muestra agregados
     '''
     for frame, keypoints in enumerate(kp_seq):
-        data = {'sample': n_sample, 'frame': frame + 1,'keypoints': [keypoints]}
-        df_keypoints = pd.DataFrame(data)
-        df = pd.concat([df, df_keypoints])
+        data = {'sample': n_sample, 'frame': frame + 1,'keypoints': [keypoints]} #sample: 1, frame: 2, kepoypoints: 01.25
+        df_keypoints = pd.DataFrame(data) #lo ponemos en cuadro
+        df = pd.concat([df, df_keypoints])#lo agregamos a data(cre_kp) para que este en la array
     return df
