@@ -111,10 +111,20 @@ class App:
         )
         if word:
             res, name_path = capture_new_sign(word)
-            if res:
+            if res == "exists":
+                messagebox.showerror(
+                    "Resultado de la captura",
+                    f"La muestra de la palabra {word} ha sido capturada anteriormente",
+                )
+            elif res == "create":
                 messagebox.showinfo(
                     "Resultado de la captura",
-                    f"La muestra de la palabra {word} se encuentra en la carpeta {name_path}",
+                    f"La muestra de la palabra {word} se encuentra en la carpeta {name_path}, ademas se extrajo correctmente los kp",
+                )
+            else:
+                messagebox.showwarning(
+                    "Resultado de la captura",
+                    f'Se elimino correctamente la muestra de la palabra "{word}"',
                 )
 
     def detect_and_talk(self):
@@ -123,7 +133,3 @@ class App:
 
     def close_window(self):
         self.window.destroy()
-
-
-if __name__ == "__main__":
-    app = App()

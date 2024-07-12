@@ -2,11 +2,9 @@ import os
 
 import cv2
 import numpy as np
-
-# import pygetwindow as pw
 from mediapipe.python.solutions.holistic import Holistic
 
-from utils.constants import BLUE_COLOR, FONT, FONT_POS, FONT_SIZE, RED_COLOR # de
+from utils.constants import BLUE_COLOR, FONT, FONT_POS, FONT_SIZE, RED_COLOR
 from utils.model_utils import (
     create_dir,
     draw_keypoints,
@@ -24,29 +22,32 @@ def handle_action(action, *args, **kwargs):
         return None
 
 
-"""
-def bring_window_to_front(window_name):
-    try:
-        window = pw.getWindowsWithTitle(window_name)[0]
-        window.activate()
-    except IndexError:
-        print(f"No se encontró la ventana con el nombre: {window_name}")
-    except pw.PyGetWindowException:
-        pass
-"""
-
-
 def model_capture_sign(path, margin_frame=2, min_cant_frames=5, video_device=0):
+    """
+    Captura de muestras para una palabra.
+
+    Parameters:
+    - path (str): Ruta de la carpeta de la palabra.
+    - margin_frame (int): Cantidad de frames que se ignoran al comienzo y al final.
+    - min_cant_frames (int): Cantidad de frames mínimos para cada muestra.
+    - video_device (int): Dispositivo de video a usar (default es 0 para webcam).
+
+    Controles:
+    - 'Esc' para salir y eliminar la muestra actual.
+    - 'Enter' para terminar el registro de la muestra actual.
+    - ' ' (espacio) para pausar la captura, pulsar de nuevo espacio para reanudad con la captura
+    - 'q' para guardar la muestra capturada, salir y cerrar el programa.
+    """
     create_dir(path)
-  #VARIABLES 
+
     cant_samples_exists = len(os.listdir(path))
     quantity_sample = cant_samples_exists
-    new_sample_requested = False
+    new_sample_deleted = False
     count_frame = 0
-    capturing = True #usado en (64)
-    frames = [] #lista donde se almacenan los frames
+    capturing = True
+    frames = []
 
-    with Holistic() as holistic_model:  # de aqui optenemos la variable 
+    with Holistic() as holistic_model:
         video = cv2.VideoCapture(video_device)
 
         if not video.isOpened():
@@ -55,69 +56,81 @@ def model_capture_sign(path, margin_frame=2, min_cant_frames=5, video_device=0):
         window_name = f'Toma de muestras para la palabra "{os.path.basename(path)}"'
 
         while video.isOpened():
-            # "ret" alamacena un bool y "frame" alamcena el una matriz en representacion de img (line 59)
-            ret, frame = video.read() # la funcion .read() me ayuda a leer los frames de un video, me da una variable bool
-            if not ret: #ret == False
+            ret, frame = video.read()
+            if not ret:
                 break
 
-            image, results = mediapipe_detection(frame, holistic_model) #(58,49) se hace llamado a la fucion medi_....
-            if capturing and there_hand(results): #capturing(46), se hace llamado a there_hand
-                count_frame += 1
-                if count_frame > margin_frame: # 3>2
+            image, results = mediapipe_detection(frame, holistic_model)
+
+            if capturing:
+                if there_hand(results):
+                    count_frame += 1
+                    if count_frame > margin_frame:
+                        cv2.putText(
+                            image,
+                            f"Capturando la seña de {os.path.basename(path)}",
+                            FONT_POS,
+                            FONT,
+                            FONT_SIZE,
+                            BLUE_COLOR,
+                            2,
+                        )
+                        frames.append(np.asarray(frame))
+                else:
+                    if len(frames) > min_cant_frames + margin_frame:
+                        quantity_sample += 1
+                        frames = frames[:-margin_frame]
+                        output_dir = os.path.join(path, f"sample_{quantity_sample}")
+                        create_dir(output_dir)
+                        save_frames(frames, output_dir)
+
+                    frames = []
+                    count_frame = 0
                     cv2.putText(
                         image,
-                        f"Capturando la seña de {os.path.basename(path)}",
+                        "Listo para capturar..",
                         FONT_POS,
                         FONT,
                         FONT_SIZE,
-                        BLUE_COLOR,
+                        RED_COLOR,
+                        2,
                     )
-                    frames.append(np.asarray(frame))
+                    cv2.putText(
+                        image,
+                        f"Muestra numero: {quantity_sample}",
+                        (11, 100),
+                        FONT,
+                        FONT_SIZE,
+                        RED_COLOR,
+                        2,
+                    )
             else:
-                if len(frames) > min_cant_frames + margin_frame:
-                    quantity_sample += 1
-                    frames = frames[:-margin_frame]
-                    output_dir = os.path.join(path, f"sample_{quantity_sample}")
-                    create_dir(output_dir)
-                    save_frames(frames, output_dir)
-
-                frames = []
-                count_frame = 1
                 cv2.putText(
                     image,
-                    "Listo para capturar...",
+                    "Se pauso la captura de samples",
                     FONT_POS,
                     FONT,
                     FONT_SIZE,
                     RED_COLOR,
                     2,
                 )
-                cv2.putText(
-                    image,
-                    f"Muestra numero: {quantity_sample}",
-                    (11, 100),
-                    FONT,
-                    FONT_SIZE,
-                    RED_COLOR,
-                    2,
-                )
-
-#DESPUES DE HABER PASADO POR EL IF MAS DE MAYOR NIVEL , CONTINUA CON "DRAW_KEYPOINTS"
 
             draw_keypoints(image, results)
-            cv2.imshow(f'Toma de muestras para "{os.path.basename(path)}"', image) #(,la img en matriz)
-            # bring_window_to_front(window_name)
+            cv2.imshow(window_name, image)
 
             key = cv2.waitKey(10) & 0xFF
-            if key == 28:
+            if key == 13:  # Pressed Enter key
                 break
-            elif key == ord("q"):
+            elif key == ord("q"):  # Pressed q key
                 video.release()
-                cv2.destroyWindow("video")
-            elif key == ord(" "):
+                cv2.destroyAllWindows()
+            elif key == ord(" "):  # Pressed space key
                 capturing = not capturing
-            elif key == 14:
-                new_sample_requested = True
+            elif key == 27:  # Pressed Esc key
+                new_sample_deleted = True
                 break
 
-    return new_sample_requested
+        video.release()
+        cv2.destroyWindow(window_name)
+
+    return new_sample_deleted
